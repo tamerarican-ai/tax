@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Kalori Takip">
+    <title>Kişisel Kalori ve Makro Takip Uygulaması</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            background-color: #f2f4f8;
+            color: #0f172a;
+        }
+        /* Özel Kaydırma Çubuğu */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 8px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 8px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .ios-card {
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.85);
+            box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.04);
+        }
+        .food-item-btn.selected {
+            background-color: #eff6ff;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+        .meal-pill.active {
+            background-color: #0f766e;
+            color: #ffffff;
+            border-color: #0f766e;
+            box-shadow: 0 4px 12px rgba(15, 118, 110, 0.25);
+        }
+        .quick-mult-btn.active {
+            background-color: #0f766e;
+            color: white;
+            border-color: #0f766e;
+        }
+    </style>
+</head>
+<body class="min-h-screen pb-12">
+
+    <!-- Bildirim Toast Kutusu -->
+    <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 hidden transition-all duration-300 transform">
+        <div class="bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-sm font-medium">
+            <span id="toastIcon">✅</span>
+            <span id="toastMessage">Besin eklendi!</span>
+        </div>
+    </div>
+
+    <!-- Sıfırlama Onay Modalı (alert/confirm yerine özel iOS tarzı kutu) -->
+    <div id="resetModal" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 text-center animate-fade-in">
+            <div class="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4 text-xl font-bold">
+                !
+            </div>
+            <h3 class="text-lg font-bold text-slate-900 mb-1">Günü Sıfırlamak İstiyor musunuz?</h3>
+            <p class="text-sm text-slate-500 mb-6">Bugün öğünlerinize eklediğiniz tüm besin kayıtları temizlenecektir. Kişisel profiliniz ve özel besin listeniz korunur.</p>
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="closeResetModal()" class="py-3 px-4 rounded-xl font-semibold text-sm bg-slate-100 text-slate-700 hover:bg-slate-200 active:scale-95 transition">
+                    Vazgeç
+                </button>
+                <button onclick="confirmClearToday()" class="py-3 px-4 rounded-xl font-semibold text-sm bg-red-600 text-white hover:bg-red-700 active:scale-95 transition shadow-md shadow-red-600/20">
+                    Evet, Sıfırla
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Apple Kurulum İpucu Modalı -->
+    <div id="appleGuideModal" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <span>🍏</span> iPhone & iPad Ana Ekrana Ekleme
+                </h3>
+                <button onclick="toggleAppleGuide()" class="text-slate-400 hover:text-slate-600 text-xl font-bold px-2">✕</button>
+            </div>
+            <ol class="space-y-3 text-sm text-slate-600 mb-6 list-decimal list-inside">
+                <li>Bu dosyayı <strong>Dosyalar (Files)</strong> uygulamasına kaydedin ve üzerine dokunarak <strong>Safari</strong>'de açın.</li>
+                <li>Safari'nin alt barındaki <strong>Paylaş</strong> (yukarı ok 📤) simgesine dokunun.</li>
+                <li>Menüde aşağı kaydırıp <strong>"Ana Ekrana Ekle"</strong> seçeneğine basın.</li>
+                <li>Artık uygulamayı ana ekranınızdan tam ekran bir iOS uygulaması gibi internet olmadan da kullanabilirsiniz!</li>
+            </ol>
+            <button onclick="toggleAppleGuide()" class="w-full py-3 rounded-xl font-semibold text-sm bg-teal-700 text-white hover:bg-teal-800 transition">
+                Anlaşıldı
+            </button>
+        </div>
+    </div>
+
+    <!-- Üst Başlık Barı -->
+    <header class="sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-slate-200/80 px-4 py-3.5 mb-5">
+        <div class="max-w-6xl mx-auto flex items-center justify-between gap-2">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-teal-600 to-emerald-500 flex items-center justify-center text-white shadow-md shadow-teal-600/20 text-xl">
+                    🥗
+                </div>
+                <div>
+                    <h1 class="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight leading-tight">Kalori & Makro Takip</h1>
+                    <p id="currentDateText" class="text-xs text-slate-500 font-medium">Günlük Beslenme Asistanı</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="toggleAppleGuide()" class="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition flex items-center gap-1.5" title="iPhone/iPad Kurulum Rehberi">
+                    <span>🍏</span> <span class="hidden sm:inline">iOS İpucu</span>
+                </button>
+                <button onclick="openResetModal()" class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-red-50 text-red-600 border border-red-200/60 hover:bg-red-100 active:scale-95 transition flex items-center gap-1.5">
+                    <span>🗑️</span> <span>Günü Sıfırla</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Ana İçerik Izgarası -->
+    <main class="max-w-6xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+        <!-- SOL SÜTUN: GÜNLÜK ÖZET PANOSU + KİŞİSEL BİLGİLER (5 Sütun) -->
+        <div class="lg:col-span-5 space-y-5">
+
+            <!-- 1. GÜNLÜK ÖZET PANOSU (En üstte her an görünür) -->
+            <section class="ios-card rounded-3xl p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                        <span>📊</span> Günlük Özet Panosu
+                    </h2>
+                    <span id="bmrTdeeBadge" class="text-[11px] font-semibold bg-teal-50 text-teal-700 px-2.5 py-1 rounded-full border border-teal-200/60">
+                        BMH: 1673 | TDEE: 2592
+                    </span>
+                </div>
+
+                <!-- 3 Ana Kalori Kartı -->
+                <div class="grid grid-cols-3 gap-2.5 mb-5">
+                    <div class="bg-slate-50 border border-slate-200/70 rounded-2xl p-3 text-center">
+                        <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">Hedef</span>
+                        <span id="targetCalVal" class="text-lg sm:text-xl font-extrabold text-slate-900 mt-0.5 block">2592</span>
+                        <span class="text-[10px] text-slate-400 font-medium">kcal</span>
+                    </div>
+                    <div class="bg-teal-50/70 border border-teal-200/70 rounded-2xl p-3 text-center">
+                        <span class="text-[11px] font-semibold text-teal-700 uppercase tracking-wider block">Alınan</span>
+                        <span id="eatenCalVal" class="text-lg sm:text-xl font-extrabold text-teal-700 mt-0.5 block">0</span>
+                        <span class="text-[10px] text-teal-600/80 font-medium">kcal</span>
+                    </div>
+                    <div id="remainCard" class="bg-blue-50/70 border border-blue-200/70 rounded-2xl p-3 text-center">
+                        <span id="remainLabel" class="text-[11px] font-semibold text-blue-700 uppercase tracking-wider block">Kalan</span>
+                        <span id="remainCalVal" class="text-lg sm:text-xl font-extrabold text-blue-700 mt-0.5 block">2592</span>
+                        <span class="text-[10px] text-blue-600/80 font-medium">kcal</span>
+                    </div>
+                </div>
+
+                <!-- Renkli İlerleme Çubukları (Progress Bars) -->
+                <div class="space-y-3.5">
+                    <!-- Toplam Kalori -->
+                    <div>
+                        <div class="flex justify-between text-xs font-semibold mb-1.5">
+                            <span class="text-slate-700 flex items-center gap-1.5">🔥 Toplam Kalori</span>
+                            <span id="calProgressText" class="text-slate-900 font-bold">0 / 2592 kcal (%0)</span>
+                        </div>
+                        <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200/60">
+                            <div id="calBar" class="h-full bg-gradient-to-r from-teal-600 to-emerald-500 rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Protein -->
+                    <div>
+                        <div class="flex justify-between text-xs font-semibold mb-1.5">
+                            <span class="text-blue-600 flex items-center gap-1.5">🥩 Protein <span id="proRatioBadge" class="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.2 rounded">(%30)</span></span>
+                            <span id="proProgressText" class="text-slate-700">0 / 194 g</span>
+                        </div>
+                        <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div id="proBar" class="h-full bg-blue-500 rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Karbonhidrat -->
+                    <div>
+                        <div class="flex justify-between text-xs font-semibold mb-1.5">
+                            <span class="text-emerald-600 flex items-center gap-1.5">🌾 Karbonhidrat <span id="carbRatioBadge" class="text-[10px] bg-emerald-50 text-emerald-600 px-1.5 py-0.2 rounded">(%45)</span></span>
+                            <span id="carbProgressText" class="text-slate-700">0 / 292 g</span>
+                        </div>
+                        <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div id="carbBar" class="h-full bg-emerald-500 rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Yağ -->
+                    <div>
+                        <div class="flex justify-between text-xs font-semibold mb-1.5">
+                            <span class="text-amber-600 flex items-center gap-1.5">🥑 Sağlıklı Yağ <span id="fatRatioBadge" class="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.2 rounded">(%25)</span></span>
+                            <span id="fatProgressText" class="text-slate-700">0 / 72 g</span>
+                        </div>
+                        <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div id="fatBar" class="h-full bg-amber-500 rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Su İhtiyacı Alt Bilgi -->
+                <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                    <span>💧 Önerilen Günlük Su İhtiyacı:</span>
+                    <strong id="waterNeedText" class="text-sky-600 font-bold">2.8 Litre</strong>
+                </div>
+            </section>
+
+            <!-- 2. KİŞİSEL BİLGİLER & HEDEF HESAPLAMA -->
+            <section class="ios-card rounded-3xl p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                        <span>⚙️</span> Kişisel Bilgiler & Hedef
+                    </h2>
+                    <span class="text-[11px] text-slate-400 font-medium">Mifflin-St Jeor</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Cinsiyet</label>
+                        <select id="gender" onchange="updateProfile()" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
+                            <option value="male" selected>Erkek</option>
+                            <option value="female">Kadın</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Yaş</label>
+                        <input type="number" id="age" value="49" min="14" max="100" oninput="updateProfile()" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Boy (cm)</label>
+                        <input type="number" id="height" value="178" min="120" max="230" oninput="updateProfile()" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Kilo (kg)</label>
+                        <input type="number" id="weight" value="80" min="35" max="220" oninput="updateProfile()" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Aktivite Düzeyi</label>
+                    <select id="activity" onchange="updateProfile()" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
+                        <option value="1.2">Hareketsiz (Masa başı iş, egzersiz yok - 1.2x)</option>
+                        <option value="1.375">Az Hareketli (Haftada 1-3 gün yürüyüş - 1.375x)</option>
+                        <option value="1.55" selected>Orta Hareketli (Düzenli antrenman / yürüyüş - 1.55x)</option>
+                        <option value="1.725">Çok Hareketli (Haftada 6-7 gün yoğun spor - 1.725x)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Beslenme Hedefi</label>
+                    <select id="goal" onchange="updateProfile()" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500">
+                        <option value="lose">🔥 Yağ Yakımı (-400 kcal | %35 K / %35 P / %30 Y)</option>
+                        <option value="maintain" selected>⚖️ Form Koruma (Sabit | %45 K / %30 P / %25 Y)</option>
+                        <option value="gain">💪 Kas Kazanımı (+300 kcal | %50 K / %25 P / %25 Y)</option>
+                    </select>
+                </div>
+            </section>
+        </div>
+
+        <!-- SAĞ SÜTUN: BESİN EKLEME & BUGÜN YEDİKLERİM (7 Sütun) -->
+        <div class="lg:col-span-7 space-y-5">
+
+            <!-- 3. BESİN EKLEME BÖLÜMÜ -->
+            <section class="ios-card rounded-3xl p-5">
+                <h2 class="text-base font-bold text-slate-900 flex items-center gap-2 mb-3.5">
+                    <span>➕</span> Öğüne Besin Ekle
+                </h2>
+
+                <!-- 4 Öğün Seçici Butonlar -->
+                <div class="mb-4">
+                    <label class="block text-xs font-semibold text-slate-500 mb-2">1. Öğün Seçin</label>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2" id="mealSelectorGroup">
+                        <button type="button" onclick="selectMeal('Kahvaltı')" data-meal="Kahvaltı" class="meal-pill active py-2.5 px-3 rounded-2xl border border-slate-200 text-xs font-bold transition flex items-center justify-center gap-1.5">
+                            <span>🍳</span> Kahvaltı
+                        </button>
+                        <button type="button" onclick="selectMeal('Öğle Yemeği')" data-meal="Öğle Yemeği" class="meal-pill py-2.5 px-3 rounded-2xl border border-slate-200 text-slate-700 bg-slate-50/70 text-xs font-bold transition flex items-center justify-center gap-1.5">
+                            <span>🍲</span> Öğle Yemeği
+                        </button>
+                        <button type="button" onclick="selectMeal('Akşam Yemeği')" data-meal="Akşam Yemeği" class="meal-pill py-2.5 px-3 rounded-2xl border border-slate-200 text-slate-700 bg-slate-50/70 text-xs font-bold transition flex items-center justify-center gap-1.5">
+                            <span>🥗</span> Akşam Yemeği
+                        </button>
+                        <button type="button" onclick="selectMeal('Ara Öğün / İçecek')" data-meal="Ara Öğün / İçecek" class="meal-pill py-2.5 px-3 rounded-2xl border border-slate-200 text-slate-700 bg-slate-50/70 text-xs font-bold transition flex items-center justify-center gap-1.5">
+                            <span>🥜</span> Ara Öğün
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sekme Değiştirici (Hazır Liste vs Özel Besin) -->
+                <div class="bg-slate-100 p-1 rounded-2xl grid grid-cols-2 gap-1 mb-4">
+                    <button type="button" id="tabDbBtn" onclick="switchFoodTab('db')" class="py-2 rounded-xl text-xs font-bold bg-white text-slate-900 shadow-xs transition">
+                        📋 Hazır Listeden Seç
+                    </button>
+                    <button type="button" id="tabCustomBtn" onclick="switchFoodTab('custom')" class="py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 transition">
+                        ✍️ Özel Besin Gir
+                    </button>
+                </div>
+
+                <!-- SEKME 1: HAZIR LİSTEDEN SEÇ -->
+                <div id="dbTabContent">
+                    <!-- Arama Kutusu -->
+                    <div class="relative mb-3">
+                        <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
+                        <input type="text" id="foodSearch" oninput="renderFoodList()" placeholder="Besin ara (Örn: yumurta, köfte, çorba, pilav, kahve...)" class="w-full pl-9 pr-9 py-2.5 rounded-2xl border border-slate-200 bg-slate-50/70 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500">
+                        <button id="clearSearchBtn" onclick="clearFoodSearch()" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold px-1.5 py-0.5 bg-slate-200 rounded-full">✕</button>
+                    </div>
+
+                    <!-- Dokunmatik Besin Seçim Listesi -->
+                    <div id="foodListContainer" class="max-h-56 overflow-y-auto space-y-1.5 pr-1 mb-4 border border-slate-200/80 rounded-2xl p-2 bg-slate-50/40">
+                        <!-- JS ile doldurulur -->
+                    </div>
+
+                    <!-- Seçili Besin Önizleme ve Porsiyon Çarpanı -->
+                    <div class="bg-teal-50/50 border border-teal-200/70 rounded-2xl p-3.5">
+                        <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+                            <div>
+                                <span class="text-[11px] font-semibold text-teal-700 uppercase tracking-wider block">Seçilen Besin & Porsiyon</span>
+                                <h4 id="selectedFoodTitle" class="text-sm font-bold text-slate-900">Haşlanmış Yumurta — 1 Adet (50g)</h4>
+                            </div>
+                            <div id="selectedFoodMacrosPreview" class="text-xs font-bold text-teal-800 bg-white px-3 py-1.5 rounded-xl border border-teal-200 shadow-2xs">
+                                78 kcal | P: 6.3g | K: 0.6g | Y: 5.3g
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
+                            <!-- Hızlı Çarpan Butonları -->
+                            <div class="sm:col-span-7 flex items-center gap-1.5 flex-wrap">
+                                <span class="text-xs font-semibold text-slate-600 mr-1">Hızlı:</span>
+                                <button type="button" onclick="setMultiplier(0.5)" data-mult="0.5" class="quick-mult-btn px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-100 transition">0.5x</button>
+                                <button type="button" onclick="setMultiplier(1)" data-mult="1" class="quick-mult-btn active px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-100 transition">1x</button>
+                                <button type="button" onclick="setMultiplier(1.5)" data-mult="1.5" class="quick-mult-btn px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-100 transition">1.5x</button>
+                                <button type="button" onclick="setMultiplier(2)" data-mult="2" class="quick-mult-btn px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-100 transition">2x</button>
+                                <button type="button" onclick="setMultiplier(3)" data-mult="3" class="quick-mult-btn px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-100 transition">3x</button>
+                            </div>
+
+                            <!-- Sayı Girişi ve Ekle Butonu -->
+                            <div class="sm:col-span-5 flex items-center gap-2">
+                                <input type="number" id="foodMultiplierInput" value="1" min="0.1" step="0.25" oninput="onMultiplierInput()" class="w-20 px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-center text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500">
+                                <button type="button" onclick="addSelectedFoodToMeal()" class="flex-1 py-2.5 px-4 rounded-xl bg-teal-700 hover:bg-teal-800 active:scale-95 text-white font-bold text-xs sm:text-sm shadow-md shadow-teal-700/20 transition flex items-center justify-center gap-1">
+                                    <span>+</span> Öğüne Ekle
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SEKME 2: ÖZEL BESİN GİR -->
+                <div id="customTabContent" class="hidden space-y-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Besin Adı *</label>
+                            <input type="text" id="customName" placeholder="Örn: Anne Köftesi / Paket Bar" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/60 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Birim / Porsiyon Tanımı</label>
+                            <input type="text" id="customUnit" placeholder="Örn: 1 Porsiyon (150g)" value="1 Porsiyon" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/60 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Kalori (kcal) *</label>
+                            <input type="number" id="customCal" placeholder="250" min="0" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/60 text-sm font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-blue-600 mb-1">Protein (g)</label>
+                            <input type="number" id="customPro" placeholder="15" min="0" step="0.1" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/60 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-emerald-600 mb-1">Karb (g)</label>
+                            <input type="number" id="customCarb" placeholder="25" min="0" step="0.1" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/60 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-amber-600 mb-1">Yağ (g)</label>
+                            <input type="number" id="customFat" placeholder="10" min="0" step="0.1" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/60 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+                        </div>
+                    </div>
+
+                    <div id="customFormError" class="hidden text-xs font-semibold text-red-600 bg-red-50 px-3 py-2 rounded-xl border border-red-200">
+                        Lütfen en az besin adını ve kalorisini girin.
+                    </div>
+
+                    <div class="flex items-center justify-between pt-1 flex-wrap gap-3">
+                        <label class="flex items-center gap-2 cursor-pointer select-none">
+                            <input type="checkbox" id="saveToMyListCheckbox" checked class="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 border-slate-300">
+                            <span class="text-xs font-semibold text-slate-700">Hazır listeme de kalıcı olarak kaydet</span>
+                        </label>
+
+                        <button type="button" onclick="addCustomFood()" class="py-2.5 px-5 rounded-xl bg-teal-700 hover:bg-teal-800 active:scale-95 text-white font-bold text-xs sm:text-sm shadow-md shadow-teal-700/20 transition">
+                            + Özel Besini Ekle
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4. BUGÜN YEDİKLERİM LİSTESİ -->
+            <section class="ios-card rounded-3xl p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                        <span>🍽️</span> Bugün Yediklerim
+                    </h2>
+                    <span id="totalItemsCountBadge" class="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+                        0 Kayıt
+                    </span>
+                </div>
+
+                <div id="mealsLogContainer" class="space-y-4">
+                    <!-- JS ile 4 öğün grubu buraya çizilir -->
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <script>
+        // --- 1. ZENGİN TÜRK MUTFAĞI BESİN VERİTABANI ---
+        const DEFAULT_FOOD_DB = [
+            { id: "f1", name: "Haşlanmış Yumurta", unit: "1 Adet (50g)", cal: 78, pro: 6.3, carb: 0.6, fat: 5.3 },
+            { id: "f2", name: "Sahanda Yumurta", unit: "2 Adet (Az Yağlı)", cal: 190, pro: 13.0, carb: 1.2, fat: 15.0 },
+            { id: "f3", name: "Beyaz Peynir", unit: "1 Dilim (30g)", cal: 93, pro: 6.0, carb: 0.8, fat: 7.2 },
+            { id: "f4", name: "Kaşar Peyniri", unit: "1 Dilim (25g)", cal: 88, pro: 6.5, carb: 0.5, fat: 6.8 },
+            { id: "f5", name: "Lor Peyniri", unit: "2 Yemek Kaşığı (50g)", cal: 55, pro: 8.5, carb: 1.5, fat: 1.5 },
+            { id: "f6", name: "Siyah / Yeşil Zeytin", unit: "5 Adet", cal: 45, pro: 0.3, carb: 0.5, fat: 4.5 },
+            { id: "f7", name: "Tam Buğday Ekmeği", unit: "1 İnce Dilim (25g)", cal: 65, pro: 2.5, carb: 12.0, fat: 0.8 },
+            { id: "f8", name: "Simit", unit: "1 Tam Adet (100g)", cal: 320, pro: 10.0, carb: 58.0, fat: 5.5 },
+            { id: "f9", name: "Yulaf Ezmesi", unit: "4 Yemek Kaşığı (40g)", cal: 150, pro: 5.5, carb: 27.0, fat: 2.6 },
+            { id: "f10", name: "Izgara Tavuk Göğsü", unit: "1 Porsiyon (150g)", cal: 248, pro: 46.5, carb: 0.0, fat: 5.4 },
+            { id: "f11", name: "Izgara Köfte", unit: "1 Porsiyon (4 Adet / 120g)", cal: 290, pro: 24.0, carb: 6.0, fat: 18.0 },
+            { id: "f12", name: "Dana Kuşbaşı / Sote", unit: "1 Porsiyon (150g)", cal: 310, pro: 36.0, carb: 2.0, fat: 17.0 },
+            { id: "f13", name: "Izgara Balık / Somon", unit: "1 Porsiyon (150g)", cal: 312, pro: 30.0, carb: 0.0, fat: 20.0 },
+            { id: "f14", name: "Ton Balığı", unit: "1 Kutu Süzülmüş (80g)", cal: 110, pro: 20.0, carb: 0.0, fat: 3.0 },
+            { id: "f15", name: "Mercimek Çorbası", unit: "1 Kase (200ml)", cal: 135, pro: 7.5, carb: 18.0, fat: 3.5 },
+            { id: "f16", name: "Ezogelin / Tarhana Çorbası", unit: "1 Kase (200ml)", cal: 140, pro: 6.0, carb: 20.0, fat: 4.0 },
+            { id: "f17", name: "Bulgur Pilavı", unit: "4 Yemek Kaşığı (100g)", cal: 145, pro: 4.0, carb: 26.0, fat: 2.8 },
+            { id: "f18", name: "Pirinç Pilavı", unit: "4 Yemek Kaşığı (100g)", cal: 165, pro: 3.0, carb: 30.0, fat: 3.5 },
+            { id: "f19", name: "Makarna", unit: "1 Tabak (150g Haşlanmış)", cal: 235, pro: 8.0, carb: 46.0, fat: 1.5 },
+            { id: "f20", name: "Kuru Fasulye / Nohut", unit: "1 Porsiyon (200g)", cal: 260, pro: 14.0, carb: 34.0, fat: 7.0 },
+            { id: "f21", name: "Zeytinyağlı Sebze Yemeği", unit: "1 Porsiyon (200g)", cal: 150, pro: 3.0, carb: 14.0, fat: 9.0 },
+            { id: "f22", name: "Yoğurt", unit: "1 Kase (150g)", cal: 95, pro: 6.0, carb: 7.0, fat: 4.5 },
+            { id: "f23", name: "Ayran", unit: "1 Bardak (200ml)", cal: 75, pro: 4.0, carb: 5.0, fat: 4.0 },
+            { id: "f24", name: "Mevsim Salata", unit: "1 Kase (1 Tatlı K. Zeytinyağlı)", cal: 85, pro: 1.5, carb: 7.0, fat: 5.5 },
+            { id: "f25", name: "Elma / Portakal", unit: "1 Orta Boy", cal: 75, pro: 0.5, carb: 18.0, fat: 0.2 },
+            { id: "f26", name: "Muz", unit: "1 Orta Boy (120g)", cal: 105, pro: 1.3, carb: 27.0, fat: 0.4 },
+            { id: "f27", name: "Çiğ Badem / Ceviz / Fındık", unit: "1 Avuç (30g)", cal: 180, pro: 5.5, carb: 4.0, fat: 16.0 },
+            { id: "f28", name: "Espresso / Americano", unit: "1 Fincan (Şekersiz)", cal: 5, pro: 0.3, carb: 0.5, fat: 0.0 },
+            { id: "f29", name: "Latte / Cappuccino", unit: "1 Bardak (240ml Sütlü, Şekersiz)", cal: 120, pro: 6.0, carb: 9.0, fat: 6.0 },
+            { id: "f30", name: "Zeytinyağı", unit: "1 Yemek Kaşığı (10g)", cal: 88, pro: 0.0, carb: 0.0, fat: 10.0 }
+        ];
+
+        // --- 2. UYGULAMA DURUMU (STATE) ---
+        let customFoods = [];
+        let eatenFoods = [];
+        let selectedMeal = "Kahvaltı";
+        let selectedFoodId = "f1";
+        let targets = { bmr: 1673, tdee: 2592, cal: 2592, pro: 194, carb: 292, fat: 72 };
+
+        const MEAL_CONFIG = [
+            { key: "Kahvaltı", icon: "🍳", badgeColor: "bg-amber-50 text-amber-800 border-amber-200" },
+            { key: "Öğle Yemeği", icon: "🍲", badgeColor: "bg-sky-50 text-sky-800 border-sky-200" },
+            { key: "Akşam Yemeği", icon: "🥗", badgeColor: "bg-indigo-50 text-indigo-800 border-indigo-200" },
+            { key: "Ara Öğün / İçecek", icon: "🥜", badgeColor: "bg-emerald-50 text-emerald-800 border-emerald-200" }
+        ];
+
+        // --- 3. BAŞLATMA ---
+        window.onload = function() {
+            // Tarihi yazdır
+            const now = new Date();
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById("currentDateText").textContent = now.toLocaleDateString('tr-TR', options);
+
+            loadFromStorage();
+            updateProfile();
+            renderFoodList();
+            renderMealsLog();
+        };
+
+        function getAllFoods() {
+            return [...customFoods, ...DEFAULT_FOOD_DB];
+        }
+
+        // --- 4. PROFİL & HEDEF HESAPLAMA (Mifflin-St Jeor) ---
+        function updateProfile() {
+            const gender = document.getElementById("gender").value;
+            const age = parseFloat(document.getElementById("age").value) || 49;
+            const height = parseFloat(document.getElementById("height").value) || 178;
+            const weight = parseFloat(document.getElementById("weight").value) || 80;
+            const activity = parseFloat(document.getElementById("activity").value) || 1.55;
+            const goal = document.getElementById("goal").value;
+
+            // Mifflin-St Jeor Denklemi
+            const bmrRaw = (10 * weight) + (6.25 * height) - (5 * age) + (gender === "male" ? 5 : -161);
+            const bmr = Math.round(bmrRaw);
+            const tdee = Math.round(bmrRaw * activity);
+
+            let targetCal = tdee;
+            let ratios = { carb: 0.45, pro: 0.30, fat: 0.25 };
+
+            if (goal === "lose") {
+                targetCal = Math.max(1200, tdee - 400);
+                ratios = { carb: 0.35, pro: 0.35, fat: 0.30 };
+            } else if (goal === "gain") {
+                targetCal = tdee + 300;
+                ratios = { carb: 0.50, pro: 0.25, fat: 0.25 };
+            }
+
+            targets = {
+                bmr: bmr,
+                tdee: tdee,
+                cal: targetCal,
+                pro: Math.round((targetCal * ratios.pro) / 4),
+                carb: Math.round((targetCal * ratios.carb) / 4),
+                fat: Math.round((targetCal * ratios.fat) / 9)
+            };
+
+            // Oran rozetlerini güncelle
+            document.getElementById("bmrTdeeBadge").textContent = `BMH: ${bmr} | TDEE: ${tdee} kcal`;
+            document.getElementById("proRatioBadge").textContent = `(%${Math.round(ratios.pro * 100)})`;
+            document.getElementById("carbRatioBadge").textContent = `(%${Math.round(ratios.carb * 100)})`;
+            document.getElementById("fatRatioBadge").textContent = `(%${Math.round(ratios.fat * 100)})`;
+
+            // Su ihtiyacı (Kilo x 0.035 L)
+            const waterLiters = (weight * 0.035).toFixed(1);
+            document.getElementById("waterNeedText").textContent = `${waterLiters} Litre`;
+
+            saveToStorage();
+            updateDashboard();
+        }
+
+        // --- 5. GÜNLÜK ÖZET PANOSU GÜNCELLEME ---
+        function updateDashboard() {
+            const totals = eatenFoods.reduce((acc, item) => {
+                acc.cal += item.cal;
+                acc.pro += item.pro;
+                acc.carb += item.carb;
+                acc.fat += item.fat;
+                return acc;
+            }, { cal: 0, pro: 0, carb: 0, fat: 0 });
+
+            const eatenCal = Math.round(totals.cal);
+            const remainCal = targets.cal - eatenCal;
+
+            document.getElementById("targetCalVal").textContent = targets.cal;
+            document.getElementById("eatenCalVal").textContent = eatenCal;
+
+            const remainCard = document.getElementById("remainCard");
+            const remainLabel = document.getElementById("remainLabel");
+            const remainCalVal = document.getElementById("remainCalVal");
+
+            if (remainCal >= 0) {
+                remainLabel.textContent = "Kalan";
+                remainCalVal.textContent = remainCal;
+                remainCard.className = "bg-blue-50/70 border border-blue-200/70 rounded-2xl p-3 text-center";
+                remainLabel.className = "text-[11px] font-semibold text-blue-700 uppercase tracking-wider block";
+                remainCalVal.className = "text-lg sm:text-xl font-extrabold text-blue-700 mt-0.5 block";
+            } else {
+                remainLabel.textContent = "Hedef Aşımı";
+                remainCalVal.textContent = `+${Math.abs(remainCal)}`;
+                remainCard.className = "bg-red-50 border border-red-200 rounded-2xl p-3 text-center";
+                remainLabel.className = "text-[11px] font-semibold text-red-600 uppercase tracking-wider block";
+                remainCalVal.className = "text-lg sm:text-xl font-extrabold text-red-600 mt-0.5 block";
+            }
+
+            // İlerleme Çubukları
+            const calPct = Math.min(100, Math.round((eatenCal / targets.cal) * 100));
+            document.getElementById("calProgressText").textContent = `${eatenCal} / ${targets.cal} kcal (%${calPct})`;
+            document.getElementById("calBar").style.width = `${calPct}%`;
+
+            const proPct = Math.min(100, Math.round((totals.pro / targets.pro) * 100));
+            document.getElementById("proProgressText").textContent = `${totals.pro.toFixed(1)} / ${targets.pro} g`;
+            document.getElementById("proBar").style.width = `${proPct}%`;
+
+            const carbPct = Math.min(100, Math.round((totals.carb / targets.carb) * 100));
+            document.getElementById("carbProgressText").textContent = `${totals.carb.toFixed(1)} / ${targets.carb} g`;
+            document.getElementById("carbBar").style.width = `${carbPct}%`;
+
+            const fatPct = Math.min(100, Math.round((totals.fat / targets.fat) * 100));
+            document.getElementById("fatProgressText").textContent = `${totals.fat.toFixed(1)} / ${targets.fat} g`;
+            document.getElementById("fatBar").style.width = `${fatPct}%`;
+        }
+
+        // --- 6. ÖĞÜN VE BESİN SEÇİMİ ---
+        function selectMeal(mealName) {
+            selectedMeal = mealName;
+            document.querySelectorAll(".meal-pill").forEach(btn => {
+                if (btn.getAttribute("data-meal") === mealName) {
+                    btn.classList.add("active");
+                    btn.classList.remove("text-slate-700", "bg-slate-50/70");
+                } else {
+                    btn.classList.remove("active");
+                    btn.classList.add("text-slate-700", "bg-slate-50/70");
+                }
+            });
+        }
+
+        function switchFoodTab(tab) {
+            const dbContent = document.getElementById("dbTabContent");
+            const customContent = document.getElementById("customTabContent");
+            const dbBtn = document.getElementById("tabDbBtn");
+            const customBtn = document.getElementById("tabCustomBtn");
+
+            if (tab === "db") {
+                dbContent.classList.remove("hidden");
+                customContent.classList.add("hidden");
+                dbBtn.className = "py-2 rounded-xl text-xs font-bold bg-white text-slate-900 shadow-xs transition";
+                customBtn.className = "py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 transition";
+            } else {
+                dbContent.classList.add("hidden");
+                customContent.classList.remove("hidden");
+                customBtn.className = "py-2 rounded-xl text-xs font-bold bg-white text-slate-900 shadow-xs transition";
+                dbBtn.className = "py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 transition";
+            }
+        }
+
+        function clearFoodSearch() {
+            document.getElementById("foodSearch").value = "";
+            renderFoodList();
+        }
+
+        function renderFoodList() {
+            const query = document.getElementById("foodSearch").value.trim().toLowerCase();
+            const clearBtn = document.getElementById("clearSearchBtn");
+            clearBtn.classList.toggle("hidden", query.length === 0);
+
+            const allFoods = getAllFoods();
+            const filtered = allFoods.filter(f =>
+                f.name.toLowerCase().includes(query) || f.unit.toLowerCase().includes(query)
+            );
+
+            const container = document.getElementById("foodListContainer");
+            container.innerHTML = "";
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-6 text-xs text-slate-500">
+                        Aradığınız besin listede bulunamadı. <strong>"Özel Besin Gir"</strong> sekmesinden ekleyebilirsiniz.
+                    </div>
+                `;
+                return;
+            }
+
+            // Seçili besin filtrede yoksa ilkini seç
+            if (!filtered.some(f => f.id === selectedFoodId)) {
+                selectedFoodId = filtered[0].id;
+            }
+
+            filtered.forEach(food => {
+                const isSelected = food.id === selectedFoodId;
+                const isCustom = String(food.id).startsWith("cust_");
+                const itemDiv = document.createElement("div");
+                itemDiv.className = `food-item-btn cursor-pointer rounded-xl p-2.5 border border-slate-200/80 bg-white hover:bg-slate-50 transition flex items-center justify-between gap-2 ${isSelected ? 'selected' : ''}`;
+                itemDiv.onclick = () => {
+                    selectedFoodId = food.id;
+                    renderFoodList();
+                    updateSelectedFoodPreview();
+                };
+
+                itemDiv.innerHTML = `
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-xs sm:text-sm font-bold text-slate-800 truncate">${food.name}</span>
+                            ${isCustom ? '<span class="text-[10px] font-bold bg-purple-100 text-purple-700 px-1.5 py-0.2 rounded">Özel</span>' : ''}
+                        </div>
+                        <span class="text-[11px] text-slate-500 block">${food.unit} — P:${food.pro}g | K:${food.carb}g | Y:${food.fat}g</span>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <span class="text-xs font-extrabold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-lg border border-teal-200/60">${food.cal} kcal</span>
+                        ${isCustom ? `<button type="button" onclick="deleteCustomFoodFromDb(event, '${food.id}')" class="text-slate-400 hover:text-red-600 text-xs font-bold px-1.5 py-1" title="Listemden Sil">🗑️</button>` : ''}
+                    </div>
+                `;
+                container.appendChild(itemDiv);
+            });
+
+            updateSelectedFoodPreview();
+        }
+
+        function setMultiplier(val) {
+            document.getElementById("foodMultiplierInput").value = val;
+            highlightQuickMultiplier(val);
+            updateSelectedFoodPreview();
+        }
+
+        function onMultiplierInput() {
+            const val = parseFloat(document.getElementById("foodMultiplierInput").value) || 1;
+            highlightQuickMultiplier(val);
+            updateSelectedFoodPreview();
+        }
+
+        function highlightQuickMultiplier(val) {
+            document.querySelectorAll(".quick-mult-btn").forEach(btn => {
+                const btnVal = parseFloat(btn.getAttribute("data-mult"));
+                btn.classList.toggle("active", btnVal === val);
+            });
+        }
+
+        function updateSelectedFoodPreview() {
+            const food = getAllFoods().find(f => f.id === selectedFoodId);
+            if (!food) return;
+
+            const mult = Math.max(0.1, parseFloat(document.getElementById("foodMultiplierInput").value) || 1);
+            const cal = Math.round(food.cal * mult);
+            const pro = (food.pro * mult).toFixed(1);
+            const carb = (food.carb * mult).toFixed(1);
+            const fat = (food.fat * mult).toFixed(1);
+
+            document.getElementById("selectedFoodTitle").textContent = `${food.name} (${mult} x ${food.unit})`;
+            document.getElementById("selectedFoodMacrosPreview").textContent = `${cal} kcal | P: ${pro}g | K: ${carb}g | Y: ${fat}g`;
+        }
+
+        function addSelectedFoodToMeal() {
+            const food = getAllFoods().find(f => f.id === selectedFoodId);
+            if (!food) return;
+
+            const mult = Math.max(0.1, parseFloat(document.getElementById("foodMultiplierInput").value) || 1);
+
+            const entry = {
+                id: Date.now() + Math.random(),
+                meal: selectedMeal,
+                name: food.name,
+                portionText: `${mult} x ${food.unit}`,
+                cal: Math.round(food.cal * mult),
+                pro: +(food.pro * mult).toFixed(1),
+                carb: +(food.carb * mult).toFixed(1),
+                fat: +(food.fat * mult).toFixed(1)
+            };
+
+            eatenFoods.push(entry);
+            saveToStorage();
+            renderMealsLog();
+            updateDashboard();
+            showToast(`"${food.name}" ${selectedMeal} öğününe eklendi!`);
+        }
+
+        // --- 7. ÖZEL BESİN EKLEME VE KAYDETME ---
+        function addCustomFood() {
+            const name = document.getElementById("customName").value.trim();
+            const unit = document.getElementById("customUnit").value.trim() || "1 Porsiyon";
+            const cal = parseFloat(document.getElementById("customCal").value);
+            const pro = parseFloat(document.getElementById("customPro").value) || 0;
+            const carb = parseFloat(document.getElementById("customCarb").value) || 0;
+            const fat = parseFloat(document.getElementById("customFat").value) || 0;
+            const saveToList = document.getElementById("saveToMyListCheckbox").checked;
+            const errBox = document.getElementById("customFormError");
+
+            if (!name || isNaN(cal) || cal < 0) {
+                errBox.classList.remove("hidden");
+                return;
+            }
+            errBox.classList.add("hidden");
+
+            // Eğer "Listeme de Kaydet" seçiliyse özel veritabanına ekle
+            if (saveToList) {
+                const newCustomItem = {
+                    id: "cust_" + Date.now(),
+                    name: name,
+                    unit: unit,
+                    cal: Math.round(cal),
+                    pro: +pro.toFixed(1),
+                    carb: +carb.toFixed(1),
+                    fat: +fat.toFixed(1)
+                };
+                customFoods.unshift(newCustomItem);
+                selectedFoodId = newCustomItem.id;
+            }
+
+            // Günlük öğüne ekle
+            eatenFoods.push({
+                id: Date.now() + Math.random(),
+                meal: selectedMeal,
+                name: name,
+                portionText: unit,
+                cal: Math.round(cal),
+                pro: +pro.toFixed(1),
+                carb: +carb.toFixed(1),
+                fat: +fat.toFixed(1)
+            });
+
+            // Formu temizle
+            document.getElementById("customName").value = "";
+            document.getElementById("customCal").value = "";
+            document.getElementById("customPro").value = "";
+            document.getElementById("customCarb").value = "";
+            document.getElementById("customFat").value = "";
+
+            saveToStorage();
+            renderFoodList();
+            renderMealsLog();
+            updateDashboard();
+            showToast(`"${name}" ${selectedMeal} öğününe eklendi!`);
+        }
+
+        function deleteCustomFoodFromDb(event, customId) {
+            event.stopPropagation();
+            customFoods = customFoods.filter(f => f.id !== customId);
+            if (selectedFoodId === customId) {
+                selectedFoodId = DEFAULT_FOOD_DB[0].id;
+            }
+            saveToStorage();
+            renderFoodList();
+            showToast("Özel besin hazır listenizden silindi.");
+        }
+
+        // --- 8. BUGÜN YEDİKLERİM LİSTESİ RENDER ---
+        function renderMealsLog() {
+            const container = document.getElementById("mealsLogContainer");
+            container.innerHTML = "";
+
+            document.getElementById("totalItemsCountBadge").textContent = `${eatenFoods.length} Kayıt`;
+
+            MEAL_CONFIG.forEach(mealCfg => {
+                const items = eatenFoods.filter(item => item.meal === mealCfg.key);
+                const mealCal = items.reduce((sum, i) => sum + i.cal, 0);
+                const mealPro = items.reduce((sum, i) => sum + i.pro, 0).toFixed(1);
+                const mealCarb = items.reduce((sum, i) => sum + i.carb, 0).toFixed(1);
+                const mealFat = items.reduce((sum, i) => sum + i.fat, 0).toFixed(1);
+
+                const block = document.createElement("div");
+                block.className = "rounded-2xl border border-slate-200/80 overflow-hidden bg-white";
+
+                block.innerHTML = `
+                    <div class="px-4 py-3 bg-slate-50 border-b border-slate-200/70 flex flex-wrap items-center justify-between gap-2">
+                        <div class="flex items-center gap-2">
+                            <span class="text-base">${mealCfg.icon}</span>
+                            <h3 class="text-sm font-bold text-slate-900">${mealCfg.key}</h3>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[11px] text-slate-500 font-medium hidden sm:inline">P:${mealPro}g · K:${mealCarb}g · Y:${mealFat}g</span>
+                            <span class="text-xs font-extrabold px-2.5 py-1 rounded-full border ${mealCfg.badgeColor}">${mealCal} kcal</span>
+                        </div>
+                    </div>
+                    <div class="divide-y divide-slate-100">
+                        ${items.length === 0 ? `
+                            <div class="px-4 py-3.5 text-xs text-slate-400 italic">
+                                Bu öğüne henüz besin eklenmedi.
+                            </div>
+                        ` : items.map(item => `
+                            <div class="px-4 py-3 flex items-center justify-between gap-3 hover:bg-slate-50/80 transition">
+                                <div class="min-w-0">
+                                    <p class="text-xs sm:text-sm font-bold text-slate-800 truncate">${item.name}</p>
+                                    <p class="text-[11px] text-slate-500">
+                                        ${item.portionText} • <span class="text-blue-600 font-semibold">P: ${item.pro}g</span> · <span class="text-emerald-600 font-semibold">K: ${item.carb}g</span> · <span class="text-amber-600 font-semibold">Y: ${item.fat}g</span>
+                                    </p>
+                                </div>
+                                <div class="flex items-center gap-2.5 shrink-0">
+                                    <span class="text-xs sm:text-sm font-extrabold text-slate-900">${item.cal} kcal</span>
+                                    <button type="button" onclick="removeEatenFood(${item.id})" class="w-7 h-7 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 active:scale-90 transition flex items-center justify-center text-xs font-bold" title="Kaydı Sil">
+                                        ✕
+                                    </button>
+                                </div>
+                            </div>
+                        `).join("")}
+                    </div>
+                `;
+
+                container.appendChild(block);
+            });
+        }
+
+        function removeEatenFood(id) {
+            eatenFoods = eatenFoods.filter(item => item.id !== id);
+            saveToStorage();
+            renderMealsLog();
+            updateDashboard();
+            showToast("Besin kaydı silindi.");
+        }
+
+        // --- 9. SIFIRLAMA & MODAL YÖNETİMİ ---
+        function openResetModal() {
+            document.getElementById("resetModal").classList.remove("hidden");
+        }
+
+        function closeResetModal() {
+            document.getElementById("resetModal").classList.add("hidden");
+        }
+
+        function confirmClearToday() {
+            eatenFoods = [];
+            saveToStorage();
+            renderMealsLog();
+            updateDashboard();
+            closeResetModal();
+            showToast("Günlük öğün kayıtları sıfırlandı.");
+        }
+
+        function toggleAppleGuide() {
+            const modal = document.getElementById("appleGuideModal");
+            modal.classList.toggle("hidden");
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById("toast");
+            document.getElementById("toastMessage").textContent = msg;
+            toast.classList.remove("hidden");
+            clearTimeout(window.toastTimer);
+            window.toastTimer = setTimeout(() => {
+                toast.classList.add("hidden");
+            }, 2400);
+        }
+
+        // --- 10. LOCALSTORAGE KAYIT VE YÜKLEME ---
+        function saveToStorage() {
+            try {
+                const profile = {
+                    gender: document.getElementById("gender").value,
+                    age: document.getElementById("age").value,
+                    height: document.getElementById("height").value,
+                    weight: document.getElementById("weight").value,
+                    activity: document.getElementById("activity").value,
+                    goal: document.getElementById("goal").value
+                };
+                localStorage.setItem("tr_kalori_profil_v2", JSON.stringify(profile));
+                localStorage.setItem("tr_kalori_ogunler_v2", JSON.stringify(eatenFoods));
+                localStorage.setItem("tr_kalori_ozel_besinler_v2", JSON.stringify(customFoods));
+            } catch (e) {
+                console.warn("Veri kaydedilemedi:", e);
+            }
+        }
+
+        function loadFromStorage() {
+            try {
+                const savedProfile = localStorage.getItem("tr_kalori_profil_v2");
+                if (savedProfile) {
+                    const p = JSON.parse(savedProfile);
+                    document.getElementById("gender").value = p.gender || "male";
+                    document.getElementById("age").value = p.age || 49;
+                    document.getElementById("height").value = p.height || 178;
+                    document.getElementById("weight").value = p.weight || 80;
+                    document.getElementById("activity").value = p.activity || "1.55";
+                    document.getElementById("goal").value = p.goal || "maintain";
+                }
+
+                const savedMeals = localStorage.getItem("tr_kalori_ogunler_v2");
+                if (savedMeals) {
+                    eatenFoods = JSON.parse(savedMeals);
+                }
+
+                const savedCustom = localStorage.getItem("tr_kalori_ozel_besinler_v2");
+                if (savedCustom) {
+                    customFoods = JSON.parse(savedCustom);
+                }
+            } catch (e) {
+                console.warn("Kayıtlı veri okunamadı:", e);
+            }
+        }
+    </script>
+</body>
+</html>
